@@ -2,7 +2,9 @@ package com.alex.zhu.mymemory.models
 
 import com.alex.zhu.mymemory.utils.DEFAULT_ICONS
 
-class MemoryGame (private val boardSize: BoardSize) {
+class MemoryGame(
+    private val boardSize: BoardSize,
+    private val customImages: List<String>?) {
 
     //the cards are going to be a member variable in this class
     val cards: List<MemoryCard>
@@ -12,28 +14,34 @@ class MemoryGame (private val boardSize: BoardSize) {
     private var indexOfSingleSelectedCard: Int? = null
 
     init{
-        val chosenImages = DEFAULT_ICONS.shuffled().take(boardSize.getNumPairs())
-        //shuffled is randomized and we are going to take a certain number. The number of images
-        //we take will be boardSize.getNumPairs, since, for example, for an 8 card game we want
-        //4 images, or 4 pairs of images, taking 4 images out of the DEFAULT_ICONS
+        if (customImages == null) {
+            val chosenImages = DEFAULT_ICONS.shuffled().take(boardSize.getNumPairs())
+            //shuffled is randomized and we are going to take a certain number. The number of images
+            //we take will be boardSize.getNumPairs, since, for example, for an 8 card game we want
+            //4 images, or 4 pairs of images, taking 4 images out of the DEFAULT_ICONS
 
-        val randomizedImages = (chosenImages + chosenImages).shuffled()
-        //and this randomized list of 4 images, doubled and shuffled will be what we pass into
-        //the adapter (added an extra parameter)
+            val randomizedImages = (chosenImages + chosenImages).shuffled()
+            //and this randomized list of 4 images, doubled and shuffled will be what we pass into
+            //the adapter (added an extra parameter)
 
-        //each randomized Image will correspond to one memory card and we want to create a list of
-        //those memory cards
-        //we are going to utilize the map function on randomizedImages, what that does is for
-        //every element of randomizedImages we are going to do an operation and create a new list
-        //We are going to transform randomizedImages into a new list
+            //each randomized Image will correspond to one memory card and we want to create a list of
+            //those memory cards
+            //we are going to utilize the map function on randomizedImages, what that does is for
+            //every element of randomizedImages we are going to do an operation and create a new list
+            //We are going to transform randomizedImages into a new list
 
-        //In particular, create a new memoryCard object
-        //takes in three parameters that we defined:
-        //1 is the identifier and that will be the current randomized image that we are mapping
-        //over and we refer to that as it
-        //since we gave a default value for isFaceUp and isMatched, we actually don't need to
-        //specify it (false here) so we can just pass in one parameter to MemoryCard
-        cards = randomizedImages.map{ MemoryCard(it) }
+            //In particular, create a new memoryCard object
+            //takes in three parameters that we defined:
+            //1 is the identifier and that will be the current randomized image that we are mapping
+            //over and we refer to that as it
+            //since we gave a default value for isFaceUp and isMatched, we actually don't need to
+            //specify it (false here) so we can just pass in one parameter to MemoryCard
+            cards = randomizedImages.map { MemoryCard(it) }
+        } else {
+            val randomizedImages = (customImages + customImages).shuffled()
+            // pass in it which is the optional parameter in MemoryCard that we defined
+            cards = randomizedImages.map {MemoryCard(it.hashCode(), it) }
+        }
     }
     fun flipCard(position: Int): Boolean {
         numCardFlips++

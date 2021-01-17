@@ -4,7 +4,9 @@ data class MemoryCard (
     //identifier represents the uniqueness of the memory icon which is the underlying resource id
     //integer of the memory card
     val identifier: Int,
-    //the second attribute of a memory card is whether it's face up or face down, so we are going
+    val imageUrl: String? = null,
+
+    //the third attribute of a memory card is whether it's face up or face down, so we are going
     //to identify another attribute called is face up which will be a boolean
     var isFaceUp: Boolean = false,
 

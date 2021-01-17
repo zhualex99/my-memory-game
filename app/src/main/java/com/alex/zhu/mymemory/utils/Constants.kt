@@ -2,6 +2,14 @@ package com.alex.zhu.mymemory.utils
 
 import com.alex.zhu.mymemory.R
 
+// The reason we are defining EXTRA_BOARD_SIZE in a seperate file that MainActivity (where I first
+// used it) is because we're actually going to be referencing EXTRA_BOARD_SIZE in CreateActivity, so
+// for a shared constant between multiple files I'm going to put that into Constants.kt rather than
+// defining it into a single file
+const val EXTRA_BOARD_SIZE = "EXTRA_BOARD_SIZE"
+
+const val EXTRA_GAME_NAME = "EXTRA_GAME_NAME"
+
 val DEFAULT_ICONS = listOf(
     R.drawable.ic_face,
     R.drawable.ic_flower,

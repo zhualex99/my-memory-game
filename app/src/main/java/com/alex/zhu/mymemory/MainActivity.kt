@@ -1,6 +1,8 @@
 package com.alex.zhu.mymemory
 
 import android.animation.ArgbEvaluator
+import android.app.Activity
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -16,18 +18,19 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.alex.zhu.mymemory.models.BoardSize
-import com.alex.zhu.mymemory.models.MemoryCard
 import com.alex.zhu.mymemory.models.MemoryGame
-import com.alex.zhu.mymemory.utils.DEFAULT_ICONS
+import com.alex.zhu.mymemory.models.UserImageList
+import com.alex.zhu.mymemory.utils.EXTRA_BOARD_SIZE
+import com.alex.zhu.mymemory.utils.EXTRA_GAME_NAME
 import com.google.android.material.snackbar.Snackbar
-import java.util.stream.DoubleStream.builder
-import java.util.stream.IntStream.builder
-import java.util.stream.LongStream.builder
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val CREATE_REQUEST_CODE = 248
     }
 
 
@@ -43,6 +46,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var memoryGame: MemoryGame
     //lateinit because we know that memoryGame is going to be initialized properly but it will
     //only happen on create
+
+    // We need areference to Firestore to replace default icons with custom images
+    private val db = Firebase.firestore
+
+    private var gameName: String? = null
+    // null because when you're playing a default game with just the icons predefined, there
+    // is no game name
+    private var customGameImages: List<String>? = null
 
     private lateinit var adapter: MemoryBoardAdapter
 
@@ -62,6 +73,14 @@ class MainActivity : AppCompatActivity() {
         // Similarly,
         tvNumMoves = findViewById(R.id.tvNumMoves)
         tvNumPairs = findViewById(R.id.tvNumPairs)
+
+        // Improves the efficiency of getting to the MainActivity, hack for developer efficiency
+        // Directly create the intent to navigate to the create activity
+        // Explicit Intent, opposite is Implicit Intent
+        //   val intent = Intent (this, CreateActivity::class.java)
+        //   intent.putExtra(EXTRA_BOARD_SIZE, BoardSize.EASY)
+        //   startActivity(intent) //not something we want to ship to production but worth investing
+        // in to improve the efficiency with which we develop
 
         setupBoard()
     }
@@ -89,8 +108,106 @@ class MainActivity : AppCompatActivity() {
                 showNewSizeDialog()
                 return true
             }
+            R.id.mi_custom -> {
+                showCreationDialog()
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if ( requestCode == CREATE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            // Retrieving the name of the custom game name
+            val customGameName = data?.getStringExtra(EXTRA_GAME_NAME)
+            if (customGameName == null) {
+                Log.e(TAG, "Got null custom game name from CreateActivity")
+                return
+            }
+            downloadGame(customGameName)
+        }
+            super.onActivityResult(requestCode, resultCode, data)
+
+    }
+
+    private fun downloadGame(customGameName: String) {
+        // The goal of this function is to query Firestore, retrieve the corresponding set of
+        // image urls and use that to play the game of memory instead of our default icons
+        // Query Firestore inside of the games collection
+        db.collection("games").document(customGameName).get().addOnSuccessListener {document ->
+            // We are going to get back a document which has one field called images and that
+            // will correspond to a list of image urls (list of strings)
+            val userImageList = document.toObject(UserImageList::class.java)
+            if (userImageList?.images == null) {
+                Log.e(TAG, "Invalid custom game data from Firestore")
+                Snackbar.make(clRoot, "Sorry, we couldn't find any such game, '$customGameName", Snackbar.LENGTH_LONG).show()
+                return@addOnSuccessListener
+            }
+            // with total num images, figure out board size
+            val numCards = userImageList.images.size * 2
+            boardSize = BoardSize.getByValue(numCards)
+            customGameImages = userImageList.images
+            setupBoard()
+
+            // Set the property gamName equal to the lacoal variable game name
+            gameName = customGameName
+
+        }.addOnFailureListener{exception ->
+            Log.e(TAG, "Exception when retrieving game", exception)
+        }
+
+    }
+
+
+    // This showCreationDialog will be quite similar to showNewSizeDialog because the first thing
+    // we want before we navigate the user to the creation flow is we need to understand what
+    // size of a memory game they want to create.
+    // We are going to reuse the exact same dialog_board_size and inflate that. That will be
+    // we show on the dialog before we allow the user to go into the creation flow
+    private fun showCreationDialog() {
+        val boardSizeView = LayoutInflater.from(this).inflate(R.layout.dialog_board_size, null)
+        val radioGroupSize = boardSizeView.findViewById<RadioGroup>(R.id.radioGroup)
+        // Set a new value for the board size
+        showAlertDialog("Create your own memory board", boardSizeView, View.OnClickListener {
+            val desiredBoardSize = when (radioGroupSize.checkedRadioButtonId) {
+                R.id.rbEasy -> BoardSize.EASY
+                R.id.rbMedium -> BoardSize.MEDIUM
+                else -> BoardSize.HARD
+            }
+            // Navigate to a new activity
+            // The way we navigate between activities or screens in Android is through something
+            // called the intent system.
+            // Intents are fundamental to Android and are basically requests to the Android system
+            // or to another application to do some certain action.
+            // The intent that we are doing here is an intent to go from the MainActivity and
+            // launch the CreateActivity
+            val intent = Intent(this, CreateActivity::class.java)
+            // There are two parameters in the intent constructor, the first is a context where we
+            // are going to pass in "this", referring to where we're coming from
+            // The second parameter is the class that we want to navigate to
+
+            // Inside the intent we are going to put an extra and that will be the desired board
+            // size
+            intent.putExtra(EXTRA_BOARD_SIZE, desiredBoardSize)
+
+            // Now, in order to actually navigate to the CreateActivity, we need to call this
+            // method start activity, which has two versions.
+            // One is startActivity and the other is startActivityForResult
+
+            // startActivityForResult is necessary if we want to get some data back from the
+            // that you've launched
+
+            // In our case, we're going to be launching the CreateActivity, the user will be
+            // creating a new board there and whenever that's done we want to get that data back
+            // in the main activity and allow the user to play that custom game that they just
+            // created
+            // Since we want to get that signal back from our child activity, we will use
+            // startActivityForResult
+
+            // Pass in the intent that we just created, since we are using startActivityForResult,
+            // we also need to pass in a second parameter, which is the request code
+            startActivityForResult(intent, CREATE_REQUEST_CODE)
+        })
     }
 
     private fun showNewSizeDialog() {
@@ -119,6 +236,9 @@ class MainActivity : AppCompatActivity() {
                 R.id.rbMedium -> BoardSize.MEDIUM
                 else -> BoardSize.HARD
             }
+            // null out previous data saved inside of game name and custom game images
+            gameName = null
+            customGameImages = null
             setupBoard()
         })
     }
@@ -139,6 +259,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupBoard() {
+        // If the user is playing a custom game then we should change the title to be the name of
+        // the game
+        supportActionBar?.title = gameName ?: getString(R.string.app_name)
         when (boardSize) {
             BoardSize.EASY -> {
                 tvNumMoves.text = "Easy: 4 x 2"
@@ -156,7 +279,7 @@ class MainActivity : AppCompatActivity() {
 
         tvNumPairs.setTextColor(ContextCompat.getColor(this,R.color.color_progress_none))
 
-        memoryGame = MemoryGame(boardSize)
+        memoryGame = MemoryGame(boardSize, customGameImages)
 
         clRoot = findViewById(R.id.clRoot)
 

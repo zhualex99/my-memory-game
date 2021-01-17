@@ -12,6 +12,7 @@ import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.alex.zhu.mymemory.models.BoardSize
 import com.alex.zhu.mymemory.models.MemoryCard
+import com.squareup.picasso.Picasso
 import kotlin.math.min //to use min in onCreateViewHolder function
 
 class MemoryBoardAdapter(
@@ -82,10 +83,20 @@ class MemoryBoardAdapter(
 
         fun bind(position: Int) {
             val memoryCard = cards[position]
+
             //if the memoryCard is face up then we will use that as the image, otherwise
             //we'll use the background
-            imageButton.setImageResource(if (cards[position].isFaceUp) memoryCard.identifier
-            else R.drawable.ic_launcher_background)
+            if (memoryCard.isFaceUp) {
+                if (memoryCard.imageUrl != null) {
+                    Picasso.get().load(memoryCard.imageUrl).into(imageButton)
+                } else {
+                    imageButton.setImageResource(memoryCard.identifier)
+                }
+            } else {
+                imageButton.setImageResource(R.drawable.ic_launcher_background)
+            }
+
+
 
             // in the bind method, based on whether the memory card is match or not, we will set
             // the alpha property of the imageButton view
