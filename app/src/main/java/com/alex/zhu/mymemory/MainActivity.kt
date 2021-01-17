@@ -3,6 +3,7 @@ package com.alex.zhu.mymemory
 import android.animation.ArgbEvaluator
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -10,10 +11,12 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -22,9 +25,12 @@ import com.alex.zhu.mymemory.models.MemoryGame
 import com.alex.zhu.mymemory.models.UserImageList
 import com.alex.zhu.mymemory.utils.EXTRA_BOARD_SIZE
 import com.alex.zhu.mymemory.utils.EXTRA_GAME_NAME
+import com.github.jinatonic.confetti.CommonConfetti
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.squareup.picasso.Picasso
+import kotlinx.android.synthetic.main.dialog_download_board.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -57,7 +63,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var adapter: MemoryBoardAdapter
 
-    private lateinit var clRoot: ConstraintLayout
+    private lateinit var clRoot: CoordinatorLayout
 
     //a variable to replace the hardcoded value of numPieces
     private var boardSize: BoardSize = BoardSize.EASY
@@ -112,9 +118,16 @@ class MainActivity : AppCompatActivity() {
                 showCreationDialog()
                 return true
             }
+            // Register a listener for when the menu item gets tapped
+            R.id.mi_download -> {
+                showDownloadDialog()
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
     }
+
+
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if ( requestCode == CREATE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
@@ -128,6 +141,17 @@ class MainActivity : AppCompatActivity() {
         }
             super.onActivityResult(requestCode, resultCode, data)
 
+    }
+
+    private fun showDownloadDialog() {
+        // LayoutInflater to inflate the view which has the edit text
+        val boardDownloadView = LayoutInflater.from(this).inflate(R.layout.dialog_download_board, null)
+        showAlertDialog("Fetch memory game", boardDownloadView, View.OnClickListener {
+            // Grab the text of the game name that the user wants to download
+            val etDownloadGame = boardDownloadView.findViewById<EditText>(R.id.etDownloadGame)
+            val gameToDownload = etDownloadGame.text.toString().trim()
+            downloadGame(gameToDownload)
+        })
     }
 
     private fun downloadGame(customGameName: String) {
@@ -147,10 +171,18 @@ class MainActivity : AppCompatActivity() {
             val numCards = userImageList.images.size * 2
             boardSize = BoardSize.getByValue(numCards)
             customGameImages = userImageList.images
-            setupBoard()
+
+            // An optimization to get rid of the delay when displaying an image for the first time
+            // Even though we're not displayed this into an imageview, just go ahead and download
+            // it and fetch it so it's saved in the Picasso cache
+            for (imageUrl in userImageList.images) {
+                Picasso.get().load(imageUrl).fetch()
+            }
+            Snackbar.make(clRoot, "You're now playing '$customGameName'", Snackbar.LENGTH_LONG).show()
 
             // Set the property gamName equal to the lacoal variable game name
             gameName = customGameName
+            setupBoard()
 
         }.addOnFailureListener{exception ->
             Log.e(TAG, "Exception when retrieving game", exception)
@@ -351,6 +383,7 @@ class MainActivity : AppCompatActivity() {
             tvNumPairs.text = "Pairs: ${memoryGame.numPairsFound} / ${boardSize.getNumPairs()}"
             if (memoryGame.haveWonGame()) {
                 Snackbar.make(clRoot, "You won! Congratulations.", Snackbar.LENGTH_LONG).show()
+                CommonConfetti.rainingConfetti(clRoot, intArrayOf(Color. YELLOW, Color. GREEN, Color. MAGENTA)).oneShot()
             }
         }
         tvNumMoves.text = "Moves: ${memoryGame.getNumMoves()}"
